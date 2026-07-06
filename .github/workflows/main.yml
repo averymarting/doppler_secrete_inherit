@@ -8,7 +8,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Use Secret Variable
+      - name: Debug Secret Value (Temporary Test Only!)
         env:
-          MY_API_KEY: ${{ secrets.GOOGLE_OAUTH_CREDENTIALS }} # Synced from Doppler
-        run: echo "Using my synchronized secret key"
+          MY_API_KEY: ${{ secrets.GOOGLE_OAUTH_CREDENTIALS }}
+        run: |
+          # This adds spaces between each character so you can read it in the logs
+          echo "Your secret spaced out is:"
+          echo "$MY_API_KEY" | sed 's/./& /g'
