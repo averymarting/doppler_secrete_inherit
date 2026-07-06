@@ -1,40 +1,26 @@
-name: Fetch Doppler Share Secret
+name: Print Google Token from Netlify
 
-# Trigger manually, or wire this into another workflow via workflow_call.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:  # Run manually
+  schedule:
+    - cron: '*/30 * * * *'  # Every 30 minutes (adjust as needed)
 
 jobs:
-  fetch-secret:
+  scrape-and-print:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          node-version: '20'
-
+          python-version: '3.11'
+      
       - name: Install dependencies
         run: |
-          npm init -y
-          npm install playwright
-          npx playwright install --with-deps chromium
-
-      - name: Fetch secret from Doppler Share
-        id: doppler
-        env:
-          DOPPLER_SHARE_URL: ${{ secrets.DOPPLER_SHARE_URL }}
-          DOPPLER_SHARE_PASSWORD: ${{ secrets.DOPPLER_SHARE_PASSWORD }}
-        run: node fetch-doppler-secret.js
-
-      # Example of using the secret in a later step WITHOUT ever printing it.
-      # The value is available as steps.doppler.outputs.secret in this job.
-      - name: Use the secret (example)
-        env:
-          FETCHED_SECRET: ${{ steps.doppler.outputs.secret }}
-        run: |
-          echo "Secret length: ${#FETCHED_SECRET}"
-          # e.g. write it straight into another secret store, or use it to
-          # authenticate a deploy step — just don't `echo "$FETCHED_SECRET"`.
+          pip install requests beautifulsoup4
+      
+      - name: Run scraper and print JSON
+        run: python scrape_token.py
