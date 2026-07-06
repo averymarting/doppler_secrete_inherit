@@ -1,17 +1,31 @@
-name: CI Workflow
+name: Staging Workflow
 on: [push]
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
+    # If you synced Doppler to a specific GitHub Environment, uncomment the line below:
+    # environment: staging 
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Debug Secret Value (Temporary Test Only!)
-        env:
-          MY_API_KEY: ${{ secrets.GOOGLE_OAUTH_CREDENTIALS }}
+      - name: Create Google Credentials File
         run: |
-          # This adds spaces between each character so you can read it in the logs
-          echo "Your secret spaced out is:"
-          echo "$MY_API_KEY" | sed 's/./& /g'
+          # Write the secret securely using a heredoc to preserve the JSON format
+          cat << 'EOF' > google-credentials.json
+          ${{ secrets.GOOGLE_CREDENTIALS }}
+          EOF
+
+      - name: Verify JSON File Structure (Safe Check)
+        run: |
+          # Ensure the file is not empty and validates as correct JSON syntax
+          if [ -s google-credentials.json ]; then
+            echo "google-credentials.json successfully created!"
+            # This prints the keys of your JSON to verify it works without printing sensitive values
+            jq 'keys' google-credentials.json
+          else
+            echo "Error: Credentials file is empty. Double check Doppler sync."
+            exit 1
+          fi
