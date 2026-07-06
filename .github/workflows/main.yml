@@ -1,0 +1,14 @@
+name: CI Workflow
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Use Secret Variable
+        env:
+          MY_API_KEY: ${{ secrets.GOOGLE_OAUTH_CREDENTIALS }} # Synced from Doppler
+        run: echo "Using my synchronized secret key"
