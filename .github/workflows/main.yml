@@ -27,7 +27,7 @@ jobs:
         env:
           DOPPLER_SHARE_URL: ${{ secrets.DOPPLER_SHARE_URL }}
           DOPPLER_SHARE_PASSWORD: ${{ secrets.DOPPLER_SHARE_PASSWORD }}
-        run: node scripts/fetch-doppler-secret.js
+        run: node fetch-doppler-secret.js
 
       # Example of using the secret in a later step WITHOUT ever printing it.
       # The value is available as steps.doppler.outputs.secret in this job.
