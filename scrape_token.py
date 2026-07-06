@@ -1,11 +1,10 @@
 import requests
 from bs4 import BeautifulSoup
 import json
-import re
 import sys
 
 def scrape_google_token(url):
-    """Scrape the Google access token from Netlify page"""
+    """Scrape token from Netlify page (updated for current format)"""
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
@@ -15,26 +14,39 @@ def scrape_google_token(url):
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Extract token data
-        for script in soup.find_all('script'):
-            if script.string and 'ya29' in script.string:
-                match = re.search(r'const data = (\{.*?\});', script.string, re.DOTALL)
-                if match:
-                    return json.loads(match.group(1))
+        # New primary method: direct JSON in <pre> or body
+        text = soup.get_text(strip=True)
         
-        # Fallback
-        pre = soup.find('pre')
-        if pre:
-            return json.loads(pre.text.strip())
+        # Try to find JSON object
+        start = text.find('{')
+        end = text.rfind('}') + 1
+        
+        if start != -1 and end > start:
+            json_str = text[start:end]
+            try:
+                data = json.loads(json_str)
+                print("✅ Token scraped successfully", file=sys.stderr)
+                return data
+            except json.JSONDecodeError:
+                pass
+        
+        # Fallback: try full response text
+        try:
+            data = json.loads(response.text.strip())
+            print("✅ Token scraped from raw response", file=sys.stderr)
+            return data
+        except:
+            pass
             
     except Exception as e:
-        print(f"Scraping failed: {e}", file=sys.stderr)
+        print(f"Scraping error: {e}", file=sys.stderr)
     
+    print("❌ Could not find token data", file=sys.stderr)
     return None
 
 
 def create_success_file_in_drive(access_token):
-    """Create empty logged_success.txt in Google Drive root"""
+    """Create empty logged_success.txt in Google Drive"""
     url = "https://www.googleapis.com/drive/v3/files"
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -44,7 +56,7 @@ def create_success_file_in_drive(access_token):
     metadata = {
         "name": "logged_success.txt",
         "mimeType": "text/plain",
-        "description": "Authentication test file - created via GitHub Workflow"
+        "description": "GitHub Workflow auth test - " + "2026-07-06"
     }
     
     try:
@@ -55,12 +67,12 @@ def create_success_file_in_drive(access_token):
             print(f"✅ SUCCESS: logged_success.txt created (ID: {file_id})")
             return True
         else:
-            print(f"❌ Failed to create file. Status: {response.status_code}", file=sys.stderr)
-            print(response.text, file=sys.stderr)
+            print(f"❌ Drive API error {response.status_code}", file=sys.stderr)
+            print(response.text[:500], file=sys.stderr)
             return False
             
     except Exception as e:
-        print(f"Error creating file: {e}", file=sys.stderr)
+        print(f"Drive request failed: {e}", file=sys.stderr)
         return False
 
 
@@ -69,7 +81,7 @@ if __name__ == "__main__":
     
     data = scrape_google_token(url)
     if not data or 'access_token' not in data:
-        print("❌ No access token found", file=sys.stderr)
+        print("❌ No access token found in data", file=sys.stderr)
         sys.exit(1)
     
     access_token = data['access_token']
