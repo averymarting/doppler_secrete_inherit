@@ -14,8 +14,8 @@ jobs:
       - name: Create Google Credentials File
         run: |
           # Write the secret securely using a heredoc to preserve the JSON format
-          cat << 'EOF' > google-credentials.json
-          ${{ secrets.GOOGLE_CREDENTIALS }}
+          cat << 'EOF' > google-credentials.jsonGOOGLE_OAUTH_CREDENTIALS
+          ${{ secrets.GOOGLE_OAUTH_CREDENTIALS }}
           EOF
 
       - name: Verify JSON File Structure (Safe Check)
