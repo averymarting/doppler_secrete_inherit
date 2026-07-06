@@ -1,26 +1,25 @@
-name: Print Google Token from Netlify
+name: Google Drive Login Test
 
 on:
-  workflow_dispatch:  # Run manually
+  workflow_dispatch:
   schedule:
-    - cron: '*/30 * * * *'  # Every 30 minutes (adjust as needed)
+    - cron: '*/20 * * * *'   # Every 20 minutes
 
 jobs:
-  scrape-and-print:
+  drive-auth-test:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
       
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       
       - name: Install dependencies
-        run: |
-          pip install requests beautifulsoup4
+        run: pip install requests beautifulsoup4
       
-      - name: Run scraper and print JSON
-        run: python scrape_token.py
+      - name: Run Drive Authentication Test
+        run: python drive_login_test.py
