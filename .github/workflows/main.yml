@@ -1,36 +1,40 @@
-name: Deploy Workflow
-on: [push]
+name: Fetch Doppler Share Secret
+
+# Trigger manually, or wire this into another workflow via workflow_call.
+on:
+  workflow_dispatch: {}
 
 jobs:
-  deploy:
+  fetch-secret:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # 1. This securely downloads your JSON secret straight from Doppler
-      - name: Fetch Secrets from Doppler
-        uses: dopplerhq/secrets-fetch-action@v2.1.0
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
-          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
-          inject-env-vars: true
+          node-version: '20'
 
-      # 2. This writes your variable into the physical file
-      - name: Create Google Credentials File
+      - name: Install dependencies
         run: |
-          cat << 'EOF' > google-credentials.json
-          $GOOGLE_OAUTH_CREDENTIALS
-          EOF
+          npm init -y
+          npm install playwright
+          npx playwright install --with-deps chromium
 
-      # 3. This verifies that your JSON format is intact and populated
-      - name: Verify JSON File Structure
+      - name: Fetch secret from Doppler Share
+        id: doppler
+        env:
+          DOPPLER_SHARE_URL: ${{ secrets.DOPPLER_SHARE_URL }}
+          DOPPLER_SHARE_PASSWORD: ${{ secrets.DOPPLER_SHARE_PASSWORD }}
+        run: node scripts/fetch-doppler-secret.js
+
+      # Example of using the secret in a later step WITHOUT ever printing it.
+      # The value is available as steps.doppler.outputs.secret in this job.
+      - name: Use the secret (example)
+        env:
+          FETCHED_SECRET: ${{ steps.doppler.outputs.secret }}
         run: |
-          if [ -s google-credentials.json ]; then
-            echo "google-credentials.json successfully created!"
-            # Prints just the JSON keys to prove it worked without showing tokens
-            jq 'keys' google-credentials.json
-          else
-            echo "Error: Credentials file is empty."
-            exit 1
-          fi
+          echo "Secret length: ${#FETCHED_SECRET}"
+          # e.g. write it straight into another secret store, or use it to
+          # authenticate a deploy step — just don't `echo "$FETCHED_SECRET"`.
