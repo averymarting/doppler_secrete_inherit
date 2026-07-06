@@ -1,6 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import json
+import re
 import sys
 
 def scrape_google_token(url):
@@ -12,62 +13,54 @@ def scrape_google_token(url):
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
         
-        print("✅ Page fetched successfully. Status:", response.status_code, file=sys.stderr)
-        print("Content length:", len(response.text), file=sys.stderr)
-        
         soup = BeautifulSoup(response.text, 'html.parser')
-        raw_text = response.text.strip()
         
-        print("\n--- First 300 chars ---", file=sys.stderr)
-        print(raw_text[:300], file=sys.stderr)
-        
-        print("\n--- Last 300 chars ---", file=sys.stderr)
-        print(raw_text[-300:], file=sys.stderr)
-        
-        # Try multiple extraction methods
-        data = None
-        
-        # Method 1: JSON in <pre> tag
+        # Extract from <pre> tag
         pre = soup.find('pre')
         if pre:
-            print("Found <pre> tag", file=sys.stderr)
-            try:
-                data = json.loads(pre.text.strip())
-                print("✅ Extracted from <pre> tag", file=sys.stderr)
-            except:
-                pass
-        
-        # Method 2: Find JSON object in full text
-        if not data:
-            start = raw_text.find('{')
-            end = raw_text.rfind('}') + 1
-            if start != -1 and end > start + 10:
-                json_str = raw_text[start:end]
-                try:
-                    data = json.loads(json_str)
-                    print("✅ Extracted JSON from page text", file=sys.stderr)
-                except json.JSONDecodeError as e:
-                    print("JSON parse error:", e, file=sys.stderr)
-        
-        # Method 3: Try full response as JSON
-        if not data:
-            try:
-                data = json.loads(raw_text)
-                print("✅ Extracted from full response", file=sys.stderr)
-            except:
-                pass
-        
-        if data:
-            print("✅ Token data found!", file=sys.stderr)
-            if 'access_token' in data:
-                print("Access token present (starts with):", data['access_token'][:20] + "...", file=sys.stderr)
-            return data
-        else:
-            print("❌ No valid JSON found", file=sys.stderr)
-            return None
+            content = pre.get_text().strip()
+            # Clean common issues
+            content = re.sub(r'^\s*//.*$', '', content, flags=re.MULTILINE)  # remove comments
+            content = re.sub(r',\s*}', '}', content)  # trailing commas
+            content = re.sub(r',\s*]', ']', content)
             
+            try:
+                data = json.loads(content)
+                print("✅ Successfully extracted from <pre> tag", file=sys.stderr)
+                return data
+            except json.JSONDecodeError:
+                # Try regex extraction as fallback
+                json_match = re.search(r'(\{.*\})', content, re.DOTALL)
+                if json_match:
+                    try:
+                        data = json.loads(json_match.group(1))
+                        print("✅ Extracted using regex cleanup", file=sys.stderr)
+                        return data
+                    except:
+                        pass
+        
+        # Fallback: look for JSON in script
+        script_content = None
+        for script in soup.find_all('script'):
+            if script.string and 'access_token' in script.string:
+                script_content = script.string
+                break
+        
+        if script_content:
+            json_match = re.search(r'(\{[\s\S]*?\})', script_content)
+            if json_match:
+                try:
+                    data = json.loads(json_match.group(1))
+                    print("✅ Extracted from script tag", file=sys.stderr)
+                    return data
+                except:
+                    pass
+        
+        print("❌ Failed to parse JSON", file=sys.stderr)
+        return None
+        
     except Exception as e:
-        print(f"Request error: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         return None
 
 
@@ -80,21 +73,22 @@ def create_success_file_in_drive(access_token):
     
     metadata = {
         "name": "logged_success.txt",
-        "mimeType": "text/plain"
+        "mimeType": "text/plain",
+        "description": "GitHub Workflow success test"
     }
     
     try:
-        response = requests.post(url, headers=headers, json=metadata, timeout=10)
-        if response.status_code == 200:
-            file_id = response.json().get('id')
-            print(f"✅ SUCCESS: logged_success.txt created (ID: {file_id})")
+        resp = requests.post(url, headers=headers, json=metadata, timeout=12)
+        if resp.status_code == 200:
+            file_id = resp.json().get('id')
+            print(f"✅ SUCCESS: logged_success.txt created successfully (ID: {file_id})")
             return True
         else:
-            print(f"❌ Drive API failed: {response.status_code}", file=sys.stderr)
-            print(response.text[:400], file=sys.stderr)
+            print(f"❌ Drive API Error {resp.status_code}", file=sys.stderr)
+            print(resp.text[:300], file=sys.stderr)
             return False
     except Exception as e:
-        print(f"Drive error: {e}", file=sys.stderr)
+        print(f"Drive request failed: {e}", file=sys.stderr)
         return False
 
 
@@ -103,8 +97,8 @@ if __name__ == "__main__":
     data = scrape_google_token(url)
     
     if not data or 'access_token' not in data:
-        print("❌ No access token found", file=sys.stderr)
+        print("❌ No access_token found in data", file=sys.stderr)
         sys.exit(1)
     
-    access_token = data['access_token']
-    create_success_file_in_drive(access_token)
+    print("🔑 Access token found, attempting Drive login...", file=sys.stderr)
+    create_success_file_in_drive(data['access_token'])
